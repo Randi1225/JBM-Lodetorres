@@ -1,0 +1,65 @@
+<?php
+include_once("../includes/conexionBD.php");
+include_once("../includes/funciones.php");
+
+if (ob_get_length()) {
+    ob_clean();
+}
+
+header('Content-Type: application/json; charset=utf-8');
+
+$limite = 20;
+if (isset($_GET["limite"])) {
+    if ($_GET["limite"] === "sin") {
+        $limite = 9999999;
+    } else {
+        $limite = max(1, (int)$_GET["limite"]);
+    }
+}
+
+$pagina = 1;
+if (isset($_GET["pagina"])) {
+    $pagina = max(1, (int)$_GET["pagina"]);
+}
+
+$desdequeelemento = ($pagina - 1) * $limite;
+
+if (isset($_GET["filtro"]) && $_GET["filtro"] !== "undefined" && trim($_GET["filtro"]) !== "") {
+    $sql = "SELECT e.id_empleado, e.nombre, e.apellido, e.correo, e.activo, e.id_rol,
+                   r.nombre AS rol
+            FROM empleados e
+            INNER JOIN Rol r ON r.id_rol = e.id_rol
+            WHERE e.activo = TRUE
+              AND (e.nombre LIKE ?
+               OR e.apellido LIKE ?
+               OR e.correo LIKE ?
+               OR r.nombre LIKE ?
+               OR e.id_empleado LIKE ?)
+            ORDER BY e.apellido, e.nombre
+            LIMIT ? OFFSET ?";
+    $stmt = mysqli_prepare($conexion, $sql);
+    $filtro = "%" . $_GET["filtro"] . "%";
+    mysqli_stmt_bind_param($stmt, "sssssii", $filtro, $filtro, $filtro, $filtro, $filtro, $limite, $desdequeelemento);
+} else {
+    $sql = "SELECT e.id_empleado, e.nombre, e.apellido, e.correo, e.activo, e.id_rol,
+                   r.nombre AS rol
+            FROM empleados e
+            INNER JOIN Rol r ON r.id_rol = e.id_rol
+            WHERE e.activo = TRUE
+            ORDER BY e.apellido, e.nombre
+            LIMIT ? OFFSET ?";
+    $stmt = mysqli_prepare($conexion, $sql);
+    mysqli_stmt_bind_param($stmt, "ii", $limite, $desdequeelemento);
+}
+
+mysqli_stmt_execute($stmt);
+$resultado = mysqli_stmt_get_result($stmt);
+
+$empleados = array();
+while ($row = mysqli_fetch_assoc($resultado)) {
+    $empleados[] = $row;
+}
+
+mysqli_stmt_close($stmt);
+echo json_encode($empleados, JSON_UNESCAPED_UNICODE);
+exit();
